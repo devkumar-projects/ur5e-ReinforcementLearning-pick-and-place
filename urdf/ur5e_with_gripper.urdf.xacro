@@ -1,0 +1,267 @@
+<?xml version="1.0"?>
+<!-- ur5e_with_gripper.urdf.xacro
+  UR5e + parallel-jaw gripper (pick and place demo).
+
+  Finger dimensions (EE pointing down, Z_tool = -Z_world):
+    tool0 -40mm- palm -36mm each- finger tips
+    Fingers along +-Y_palm (= +-Y_world when gripper points down)
+    pos=0     (closed): inner face at y=+-0.031  (touching 6cm cube)
+    pos=0.025 (open):   inner face at y=+-0.056  (26mm clearance) -->
+<robot xmlns:xacro="http://wiki.ros.org/xacro" name="ur">
+
+  <!-- Same args as ur_gz.urdf.xacro -->
+  <xacro:arg name="name"           default="ur"/>
+  <xacro:arg name="ur_type"        default="ur5x"/>
+  <xacro:arg name="tf_prefix"      default=""/>
+  <xacro:arg name="joint_limit_params"
+    default="$(find ur_description)/config/$(arg ur_type)/joint_limits.yaml"/>
+  <xacro:arg name="kinematics_params"
+    default="$(find ur_description)/config/$(arg ur_type)/default_kinematics.yaml"/>
+  <xacro:arg name="physical_params"
+    default="$(find ur_description)/config/$(arg ur_type)/physical_parameters.yaml"/>
+  <xacro:arg name="visual_params"
+    default="$(find ur_description)/config/$(arg ur_type)/visual_parameters.yaml"/>
+  <xacro:arg name="transmission_hw_interface" default=""/>
+  <xacro:arg name="safety_limits"       default="false"/>
+  <xacro:arg name="safety_pos_margin"   default="0.15"/>
+  <xacro:arg name="safety_k_position"   default="20"/>
+  <xacro:arg name="simulation_controllers" default=""/>
+  <xacro:arg name="ros_namespace"       default=""/>
+
+  <!-- Includes -->
+  <xacro:include filename="$(find ur_description)/urdf/ur_macro.xacro"/>
+  <xacro:include filename="$(find ur_simulation_gz)/urdf/ur_gz.ros2_control.xacro"/>
+
+  <!-- World / ground plane -->
+  <link name="world"/>
+  <link name="ground_plane">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><box size="5 5 0"/></geometry>
+      <material name="ground_white"><color rgba="1 1 1 0.5"/></material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><box size="5 5 0"/></geometry>
+    </collision>
+  </link>
+  <joint name="ground_plane_joint" type="fixed">
+    <origin xyz="0 0 -0.01" rpy="0 0 0"/>
+    <parent link="world"/>
+    <child link="ground_plane"/>
+  </joint>
+
+  <!-- UR5e arm -->
+  <xacro:ur_robot
+    name="$(arg name)"
+    tf_prefix="$(arg tf_prefix)"
+    parent="world"
+    joint_limits_parameters_file="$(arg joint_limit_params)"
+    kinematics_parameters_file="$(arg kinematics_params)"
+    physical_parameters_file="$(arg physical_params)"
+    visual_parameters_file="$(arg visual_params)"
+    safety_limits="$(arg safety_limits)"
+    safety_pos_margin="$(arg safety_pos_margin)"
+    safety_k_position="$(arg safety_k_position)"
+    force_abs_paths="true"
+  >
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </xacro:ur_robot>
+
+  <!--
+    ═══════════════════════════════════════════════════════════════════
+      DYNAMIQUE RÉALISTE DES JOINTS UR5e — paramètres identifiés
+    ═══════════════════════════════════════════════════════════════════
+    Modèle Coulomb-visqueux : τ_frot = f_c·sgn(θ̇) + f_v·θ̇
+    Source : identification électromécanique UR5e-series (gear ratio N=100:1,
+    harmonic drive Wave Generator), paramètres ramenés au niveau joint sortie.
+
+    Gazebo <dynamics> : damping = f_v (Nm·s/rad), friction = f_c (Nm)
+
+    Joints 1-3 (modules UR "size-3", τ_max=150 Nm) :
+      f_v ≈ 1.5–2.5 Nm·s/rad  |  f_c ≈ 6–10 Nm
+    Joints 4-6 (modules "size-1", τ_max=28 Nm) :
+      f_v ≈ 0.3–0.4 Nm·s/rad  |  f_c ≈ 1.5–2.0 Nm
+
+    Ces valeurs rendent la dynamique simulée cohérente avec les mesures
+    d'identification publiées (Joystick-ID, banc UR5e 2024).
+    Elles sont utilisées AUSSI pour le domain-randomization (±20 %) dans env.py.
+  -->
+  <!-- Joint 1 – shoulder_pan : grand module, frottement élevé -->
+  <gazebo reference="shoulder_pan_joint">
+    <dynamics damping="2.0" friction="8.0"/>
+  </gazebo>
+  <!-- Joint 2 – shoulder_lift : chargé en gravité → frottement légèrement supérieur -->
+  <gazebo reference="shoulder_lift_joint">
+    <dynamics damping="2.5" friction="10.0"/>
+  </gazebo>
+  <!-- Joint 3 – elbow : module intermédiaire -->
+  <gazebo reference="elbow_joint">
+    <dynamics damping="1.5" friction="6.0"/>
+  </gazebo>
+  <!-- Joints 4-6 – poignets : petits modules, faible frottement -->
+  <gazebo reference="wrist_1_joint">
+    <dynamics damping="0.4" friction="2.0"/>
+  </gazebo>
+  <gazebo reference="wrist_2_joint">
+    <dynamics damping="0.4" friction="2.0"/>
+  </gazebo>
+  <gazebo reference="wrist_3_joint">
+    <dynamics damping="0.3" friction="1.5"/>
+  </gazebo>
+
+  <!-- gz_ros2_control plugin - loads both arm AND gripper controllers from the YAML -->
+  <gazebo reference="world"/>
+  <gazebo>
+    <plugin filename="gz_ros2_control-system"
+            name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+      <parameters>$(arg simulation_controllers)</parameters>
+      <ros><namespace>$(arg ros_namespace)</namespace></ros>
+    </plugin>
+  </gazebo>
+
+  <!-- Combined arm + gripper ros2_control in ONE hardware block.
+       Using a single GazeboSimSystem avoids the dual-plugin issue where
+       separate blocks sometimes fail to register joints with the controller_manager. -->
+  <ros2_control name="$(arg name)" type="system">
+    <hardware>
+      <plugin>gz_ros2_control/GazeboSimSystem</plugin>
+    </hardware>
+    <!-- UR arm joints (reuse ur_joint_control_description macro from ur_description) -->
+    <xacro:ur_joint_control_description
+      tf_prefix="$(arg tf_prefix)"
+      initial_positions="${dict(shoulder_pan_joint=0.0,shoulder_lift_joint=-1.5707963267948966,elbow_joint=1.5707963267948966,wrist_1_joint=-1.5707963267948966,wrist_2_joint=-1.5707963267948966,wrist_3_joint=0.0)}"
+    />
+    <!-- Gripper finger joints -->
+    <joint name="gripper_left_joint">
+      <command_interface name="velocity"/>
+      <state_interface name="position">
+        <param name="initial_value">0.025</param>
+      </state_interface>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="gripper_right_joint">
+      <command_interface name="velocity"/>
+      <state_interface name="position">
+        <param name="initial_value">0.025</param>
+      </state_interface>
+      <state_interface name="velocity"/>
+    </joint>
+  </ros2_control>
+
+  <!-- Gripper -->
+
+  <!-- Palm: 40mm below tool0 along EE-Z (toward workpiece)
+       Masse 0.6 kg : Robotiq 2F-85 body (0.9 kg total) moins les doigts (2×0.065 kg)
+       moins le câblage embarqué (~0.1 kg) → corps palm ≈ 0.6 kg. -->
+  <link name="gripper_palm_link">
+    <inertial>
+      <mass value="0.6"/>
+      <!-- Tenseur inertie boîte 60×120×24 mm, m=0.6 kg :
+           Ixx = m(h²+d²)/12 = 0.6*(0.024²+0.120²)/12 = 7.4e-4
+           Iyy = m(w²+d²)/12 = 0.6*(0.060²+0.024²)/12 = 2.1e-4
+           Izz = m(w²+h²)/12 = 0.6*(0.060²+0.120²)/12 = 9.0e-4 -->
+      <inertia ixx="7.4e-4" ixy="0" ixz="0" iyy="2.1e-4" iyz="0" izz="9.0e-4"/>
+    </inertial>
+    <visual>
+      <geometry><box size="0.06 0.12 0.024"/></geometry>
+      <material name="g_gray"><color rgba="0.45 0.45 0.45 1"/></material>
+    </visual>
+    <collision>
+      <geometry><box size="0.06 0.12 0.024"/></geometry>
+    </collision>
+  </link>
+  <!-- Surface caoutchoutée des doigts : μ=0.8 sur ABS (valeur Robotiq 2F-85 spec).
+       kp élevé pour la stabilité du contact fermé (joint DetachableJoint). -->
+  <gazebo reference="gripper_left_finger_link">
+    <mu1>0.8</mu1>
+    <mu2>0.8</mu2>
+    <kp>5e5</kp>
+    <kd>30</kd>
+  </gazebo>
+  <gazebo reference="gripper_right_finger_link">
+    <mu1>0.8</mu1>
+    <mu2>0.8</mu2>
+    <kp>5e5</kp>
+    <kd>30</kd>
+  </gazebo>
+
+  <joint name="gripper_palm_joint" type="fixed">
+    <parent link="tool0"/>
+    <child link="gripper_palm_link"/>
+    <origin xyz="0 0 0.04" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Left finger: at +Y side of palm.
+       Axis +Y - positive velocity opens (moves finger away from cube).
+       At joint_pos=0:    inner face at y - +0.031 m (closed, just touching 6 cm cube).
+       At joint_pos=0.025: inner face at y - +0.056 m (open, ~26 mm clearance). -->
+  <link name="gripper_left_finger_link">
+    <inertial>
+      <!-- Doigt Robotiq 2F-85 : 0.065 kg (mâchoire + ressort de rappel)
+           Ixx = m(h²+d²)/12 = 0.065*(0.072²+0.024²)/12 = 3.1e-5 -->
+      <mass value="0.065"/>
+      <inertia ixx="3.1e-5" ixy="0" ixz="0" iyy="5.5e-5" iyz="0" izz="3.1e-5"/>
+    </inertial>
+    <visual>
+      <geometry><box size="0.024 0.018 0.072"/></geometry>
+      <material name="g_dark"><color rgba="0.2 0.2 0.2 1"/></material>
+    </visual>
+    <collision>
+      <geometry><box size="0.024 0.018 0.072"/></geometry>
+    </collision>
+  </link>
+  <joint name="gripper_left_joint" type="prismatic">
+    <parent link="gripper_palm_link"/>
+    <child link="gripper_left_finger_link"/>
+    <!-- finger centre at y=+0.04, 36mm BELOW palm (positive Z_tool = toward object) -->
+    <origin xyz="0 0.04 0.036" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="0.0" upper="0.025" effort="40.0" velocity="0.15"/>
+    <dynamics damping="2.0" friction="1.0"/>
+  </joint>
+
+  <!-- Right finger: symmetric on -Y side. -->
+  <link name="gripper_right_finger_link">
+    <inertial>
+      <!-- Doigt Robotiq 2F-85 : 0.065 kg (mâchoire + ressort de rappel)
+           Ixx = m(h²+d²)/12 = 0.065*(0.072²+0.024²)/12 = 3.1e-5 -->
+      <mass value="0.065"/>
+      <inertia ixx="3.1e-5" ixy="0" ixz="0" iyy="5.5e-5" iyz="0" izz="3.1e-5"/>
+    </inertial>
+    <visual>
+      <geometry><box size="0.024 0.018 0.072"/></geometry>
+      <material name="g_dark"/>
+    </visual>
+    <collision>
+      <geometry><box size="0.024 0.018 0.072"/></geometry>
+    </collision>
+  </link>
+  <joint name="gripper_right_joint" type="prismatic">
+    <parent link="gripper_palm_link"/>
+    <child link="gripper_right_finger_link"/>
+    <origin xyz="0 -0.04 0.036" rpy="0 0 0"/>
+    <!-- Axis -Y - positive pos moves finger toward -Y (opening the right finger) -->
+    <axis xyz="0 -1 0"/>
+    <limit lower="0.0" upper="0.025" effort="40.0" velocity="0.15"/>
+    <dynamics damping="2.0" friction="1.0"/>
+  </joint>
+
+  <!-- Saisie physique du cube : joint fixe créé/détruit à la volée.
+       NOTE: le plugin démarre ATTACHÉ — bridge.py publie /cube/detach à l'init. -->
+  <gazebo>
+    <plugin filename="gz-sim-detachable-joint-system"
+            name="gz::sim::systems::DetachableJoint">
+      <!-- wrist_3_link : les links fixes (palm/tool0) sont fusionnés dedans
+           lors de la conversion URDF→SDF (lumping) -->
+      <parent_link>wrist_3_link</parent_link>
+      <child_model>cube</child_model>
+      <child_link>link</child_link>
+      <attach_topic>/cube/attach</attach_topic>
+      <detach_topic>/cube/detach</detach_topic>
+      <output_topic>/cube/attach_state</output_topic>
+      <suppress_child_warning>true</suppress_child_warning>
+    </plugin>
+  </gazebo>
+
+</robot>
