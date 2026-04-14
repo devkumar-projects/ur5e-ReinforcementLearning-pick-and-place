@@ -1,0 +1,247 @@
+<?xml version="1.0" ?>
+<sdf version="1.8">
+  <world name="pick_place">
+
+    <physics type="ode">
+      <!-- 250 Hz pour le pipeline gz↔ros2_control. Solver ODE renforcé pour
+           des contacts stables avec frottement de Coulomb réaliste. -->
+      <max_step_size>0.004</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+      <ode>
+        <solver>
+          <type>quick</type>
+          <!-- 100 itérations : nécessaire pour converger les contacts multiples
+               (cube+cap, doigts+cube) avec μ > 0.5 → évite la pénétration résiduelle -->
+          <iters>100</iters>
+          <sor>1.3</sor>
+          <!-- ERP/CFM globaux : erreur de contrainte réduite à 20 % par step.
+               cfm=1e-5 → rigidité des contacts sans divergence numérique -->
+          <erp>0.2</erp>
+          <cfm>1e-5</cfm>
+        </solver>
+        <constraints>
+          <!-- contact_surface_layer : épaisseur de la couche de contact.
+               1 mm réduit le jitter à haute fréquence sur les surfaces planes. -->
+          <contact_surface_layer>0.001</contact_surface_layer>
+          <contact_max_correcting_vel>10.0</contact_max_correcting_vel>
+          <cfm>1e-5</cfm>
+          <erp>0.2</erp>
+        </constraints>
+      </ode>
+    </physics>
+
+    <plugin filename="gz-sim-physics-system"
+            name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system"
+            name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system"
+            name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-contact-system"
+            name="gz::sim::systems::Contact"/>
+
+    <light type="directional" name="sun">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.8 0.8 0.8 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <attenuation>
+        <range>1000</range><constant>0.9</constant>
+        <linear>0.01</linear><quadratic>0.001</quadratic>
+      </attenuation>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
+
+    <!-- Ground plane -->
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="col">
+          <geometry><plane><normal>0 0 1</normal><size>10 10</size></plane></geometry>
+          <surface><friction><ode><mu>100</mu><mu2>50</mu2></ode></friction></surface>
+        </collision>
+        <visual name="vis">
+          <geometry><plane><normal>0 0 1</normal><size>10 10</size></plane></geometry>
+          <material>
+            <ambient>0.55 0.55 0.55 1</ambient>
+            <diffuse>0.55 0.55 0.55 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!--
+      ══════════════════════════════════════════════════════
+        PLATFORM A  (source — object starts here)
+        Position world frame: x=0.60, y=+0.20
+      ══════════════════════════════════════════════════════
+      Structure:
+        • Pole  : radius=0.025 m, height=0.28 m → top at z=0.30
+                  model-pose z = 0.14  (half-height)
+        • Cap A : radius=0.08 m,  height=0.02 m → top at z=0.32
+                  model-pose z = 0.31  (pole_top + half_cap)
+      Object (cube) rests on cap → cube-centre z = 0.32+0.03 = 0.35
+    -->
+    <model name="pole_a">
+      <static>true</static>
+      <pose>0.60 0.20 0.14 0 0 0</pose>
+      <link name="link">
+        <collision name="col">
+          <geometry><cylinder><radius>0.025</radius><length>0.28</length></cylinder></geometry>
+          <surface><friction><ode><mu>1.0</mu><mu2>1.0</mu2></ode></friction></surface>
+        </collision>
+        <visual name="vis">
+          <geometry><cylinder><radius>0.025</radius><length>0.28</length></cylinder></geometry>
+          <material>
+            <ambient>0.65 0.40 0.10 1</ambient>
+            <diffuse>0.65 0.40 0.10 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Cap on platform A — wide flat disc so cube sits stably -->
+    <model name="cap_a">
+      <static>true</static>
+      <pose>0.60 0.20 0.31 0 0 0</pose>
+      <link name="link">
+        <collision name="col">
+          <geometry><cylinder><radius>0.085</radius><length>0.02</length></cylinder></geometry>
+          <surface>
+            <!-- Cap A : aluminium anodisé. μ=0.5 correspond au frottement ABS/alu.
+                 Contact rigide (kp=1e6) pour que le cube repose sans dérive. -->
+            <friction><ode><mu>0.5</mu><mu2>0.5</mu2></ode></friction>
+            <contact><ode><kp>1e6</kp><kd>50</kd><min_depth>0.001</min_depth></ode></contact>
+          </surface>
+        </collision>
+        <visual name="vis">
+          <geometry><cylinder><radius>0.085</radius><length>0.02</length></cylinder></geometry>
+          <material>
+            <ambient>0.80 0.55 0.15 1</ambient>
+            <diffuse>0.80 0.55 0.15 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!--
+      ══════════════════════════════════════════════════════
+        PLATFORM B  (target — robot must place object here)
+        Position world frame: x=0.60, y=−0.20
+      ══════════════════════════════════════════════════════
+    -->
+    <model name="pole_b">
+      <static>true</static>
+      <pose>0.60 -0.20 0.14 0 0 0</pose>
+      <link name="link">
+        <collision name="col">
+          <geometry><cylinder><radius>0.025</radius><length>0.28</length></cylinder></geometry>
+          <surface><friction><ode><mu>1.0</mu><mu2>1.0</mu2></ode></friction></surface>
+        </collision>
+        <visual name="vis">
+          <geometry><cylinder><radius>0.025</radius><length>0.28</length></cylinder></geometry>
+          <material>
+            <ambient>0.10 0.40 0.75 1</ambient>
+            <diffuse>0.10 0.40 0.75 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Cap on platform B — same geometry, green tint to mark the target -->
+    <model name="cap_b">
+      <static>true</static>
+      <pose>0.60 -0.20 0.31 0 0 0</pose>
+      <link name="link">
+        <collision name="col">
+          <geometry><cylinder><radius>0.085</radius><length>0.02</length></cylinder></geometry>
+          <surface>
+            <!-- Cap B : même matériau que Cap A -->
+            <friction><ode><mu>0.5</mu><mu2>0.5</mu2></ode></friction>
+            <contact><ode><kp>1e6</kp><kd>50</kd><min_depth>0.001</min_depth></ode></contact>
+          </surface>
+        </collision>
+        <visual name="vis">
+          <geometry><cylinder><radius>0.085</radius><length>0.02</length></cylinder></geometry>
+          <material>
+            <ambient>0.10 0.75 0.25 1</ambient>
+            <diffuse>0.10 0.75 0.25 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Green arrow marker on cap B so the target zone is obvious -->
+    <model name="target_marker">
+      <static>true</static>
+      <pose>0.60 -0.20 0.325 0 0 0</pose>
+      <link name="link">
+        <visual name="vis">
+          <geometry><cylinder><radius>0.045</radius><length>0.005</length></cylinder></geometry>
+          <material>
+            <ambient>0.0 1.0 0.3 0.9</ambient>
+            <diffuse>0.0 1.0 0.3 0.9</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!--
+      ══════════════════════════════════════════════════════
+        CUBE  — the object the robot must pick and place
+      ══════════════════════════════════════════════════════
+      Dimensions: 0.06 × 0.06 × 0.06 m  (fits gripper gap 0.062–0.112 m)
+      Rests on cap_a: cap top = 0.32 m → cube centre = 0.32 + 0.03 = 0.35 m
+      Mass: 120 g  (stable but light enough for the RL policy)
+    -->
+    <model name="cube">
+      <pose>0.60 0.20 0.35 0 0 0</pose>
+      <link name="link">
+        <inertial>
+          <mass>0.12</mass>
+          <inertia>
+            <ixx>7.2e-5</ixx><iyy>7.2e-5</iyy><izz>7.2e-5</izz>
+          </inertia>
+        </inertial>
+        <collision name="col">
+          <geometry><box><size>0.06 0.06 0.06</size></box></geometry>
+          <surface>
+            <!-- Frottement cube ABS : μ=0.7 sur doigts en caoutchouc (valeur expérimentale
+                 Robotiq 2F-85 sur ABS). kp=5e5 : légèrement plus souple pour éviter le
+                 jitter des contacts multiples à 250 Hz. Restitution 0.3 = plastique rigide. -->
+            <friction>
+              <ode>
+                <mu>0.7</mu>
+                <mu2>0.7</mu2>
+                <!-- fdir1 : direction principale de frottement (non contrainte) -->
+                <slip1>0.0</slip1>
+                <slip2>0.0</slip2>
+              </ode>
+            </friction>
+            <contact>
+              <ode>
+                <kp>5e5</kp>
+                <kd>30</kd>
+                <min_depth>0.001</min_depth>
+                <max_vel>0.5</max_vel>
+              </ode>
+            </contact>
+            <bounce>
+              <!-- Restitution 0.3 : cube ABS rigide, restitution mesurée sur banc -->
+              <restitution_coefficient>0.3</restitution_coefficient>
+              <threshold>0.001</threshold>
+            </bounce>
+          </surface>
+        </collision>
+        <visual name="vis">
+          <geometry><box><size>0.06 0.06 0.06</size></box></geometry>
+          <material>
+            <ambient>0.95 0.15 0.10 1</ambient>
+            <diffuse>0.95 0.15 0.10 1</diffuse>
+            <specular>0.6 0.6 0.6 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+  </world>
+</sdf>
