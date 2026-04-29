@@ -1,0 +1,15 @@
+# ros_gz_bridge parameter_bridge configuration
+# Bridges Gazebo Harmonic ↔ ROS 2 Jazzy topics
+
+- ros_topic_name: "/clock"
+  gz_topic_name: "/clock"
+  ros_type_name: "rosgraph_msgs/msg/Clock"
+  gz_type_name: "gz.msgs.Clock"
+  direction: GZ_TO_ROS
+
+# All dynamic model poses (cube + robot links) — parsed in bridge.py to extract cube pose
+- ros_topic_name: "/world_dynamic_poses"
+  gz_topic_name: "/world/pick_place/dynamic_pose/info"
+  ros_type_name: "tf2_msgs/msg/TFMessage"
+  gz_type_name: "gz.msgs.Pose_V"
+  direction: GZ_TO_ROS
