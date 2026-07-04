@@ -10,9 +10,11 @@ Reinforcement learning (SAC + HER) for a UR5e arm learning to grasp a cube and p
 on a peg, simulated in **Gazebo Harmonic** under **ROS 2 Jazzy**.
 
 <p align="center">
-  <img src="docs/assets/pick_and_place_sim.png" alt="UR5e pick-and-place simulation in Gazebo" width="700">
+  <a href="https://youtu.be/wujpB2rZJXQ">
+    <img src="https://img.youtube.com/vi/wujpB2rZJXQ/maxresdefault.jpg" alt="UR5e pick-and-place simulation — watch on YouTube" width="700">
+  </a>
   <br>
-  <em>UR5e reaching for the cube (red, on the orange peg) before placing it on the target peg (blue/green) in the Gazebo Harmonic simulation.</em>
+  <em>▶️ <a href="https://youtu.be/wujpB2rZJXQ">Watch the pick-and-place simulation on YouTube</a> — the arm reaching for the cube before placing it on the target peg in Gazebo Harmonic.</em>
 </p>
 
 | | |
@@ -103,7 +105,7 @@ crontab -l | grep -v guard_train | crontab -
 
 ## Results
 
-The screenshot above shows a typical episode: the arm reaches for the cube (on the
+The video above shows a typical episode: the arm reaches for the cube (on the
 orange peg, pick pose) and must place it on the target peg (blue/green, place pose)
 within a tolerance window. Training curves (success rate and episodic reward vs.
 timesteps) are logged to
