@@ -1,7 +1,19 @@
 # UR5e RL Pick-and-Place
 
+![ROS2](https://img.shields.io/badge/ROS2-Jazzy-22314E?logo=ros&logoColor=white)
+![Gazebo](https://img.shields.io/badge/Gazebo-Harmonic-orange)
+![Python](https://img.shields.io/badge/Python-3.12-blue?logo=python&logoColor=white)
+![License](https://img.shields.io/badge/license-MIT-green)
+![Success Rate](https://img.shields.io/badge/success%20rate-~75%25-brightgreen)
+
 Reinforcement learning (SAC + HER) for a UR5e arm learning to grasp a cube and place it
 on a peg, simulated in **Gazebo Harmonic** under **ROS 2 Jazzy**.
+
+<p align="center">
+  <img src="docs/assets/pick_and_place_sim.png" alt="UR5e pick-and-place simulation in Gazebo" width="700">
+  <br>
+  <em>UR5e reaching for the cube (red, on the orange peg) before placing it on the target peg (blue/green) in the Gazebo Harmonic simulation.</em>
+</p>
 
 | | |
 |---|---|
@@ -88,6 +100,18 @@ crontab -l | grep -v guard_train | crontab -
 - `randomize_cube=True`: cube spawns within ±8 cm of nominal position at every reset.
 - Best result so far: ~75% success rate during training with randomization enabled.
 - Next milestone: sim-to-real transfer onto the physical UR5e in the lab.
+
+## Results
+
+The screenshot above shows a typical episode: the arm reaches for the cube (on the
+orange peg, pick pose) and must place it on the target peg (blue/green, place pose)
+within a tolerance window. Training curves (success rate and episodic reward vs.
+timesteps) are logged to
+TensorBoard and can be visualized live with `watch_training.py`, or after the fact with:
+
+```bash
+tensorboard --logdir ur5e_rl_gazebo/tb_logs/
+```
 
 ## License
 
