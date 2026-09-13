@@ -4,9 +4,21 @@
 # relances après crash = reprise depuis le checkpoint le plus récent (RESUME_FROM).
 # Installé en cron (toutes les minutes). flock garantit une seule instance.
 
-WS=/home/dev-kumar/ros2_ws
-LOG=$WS/guard.log
-LOCK=$WS/guard.lock
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -d "$SCRIPT_DIR/install/ur5e_rl_gazebo" ]]; then
+    DEFAULT_WS="$SCRIPT_DIR"
+else
+    DEFAULT_WS="$(cd -- "$SCRIPT_DIR/.." && pwd)"
+fi
+WS="${UR5E_WS:-$DEFAULT_WS}"
+ROS_SETUP="${ROS_SETUP:-/opt/ros/jazzy/setup.bash}"
+LOG="$WS/guard.log"
+LOCK="$WS/guard.lock"
+
+if [[ ! -d "$WS" || ! -f "$ROS_SETUP" || ! -f "$WS/install/setup.bash" ]]; then
+    echo "[$(date '+%F %T')] invalid UR5E_WS/ROS_SETUP; set UR5E_WS and ROS_SETUP" >&2
+    exit 1
+fi
 
 exec 9>"$LOCK"; flock -n 9 || exit 0
 ts(){ date '+%F %T'; }
@@ -20,16 +32,23 @@ fi
 
 echo "[$(ts)] entraînement absent — redémarrage de la stack" >>"$LOG"
 
-# Nettoyage des restes de simulation
-pkill -9 -f 'gz sim'              2>/dev/null
-pkill -9 -f 'ruby.*gz'           2>/dev/null
-pkill -9 -f 'parameter_bridge'   2>/dev/null
-pkill -9 -f 'robot_state_publisher' 2>/dev/null
-pkill -9 -f 'sim.launch.py'      2>/dev/null
-pkill -9 -f 'spawner'            2>/dev/null
+# Nettoyage ciblé des restes de simulation. Terminer proprement les processus
+# correspondants évite d'envoyer un SIGKILL global aux autres simulations.
+stop_matching() {
+    local pattern="$1"
+    local pid
+    while read -r pid; do
+        [[ "$pid" == "$$" ]] && continue
+        kill -TERM "$pid" 2>/dev/null || true
+    done < <(pgrep -f -- "$pattern" || true)
+}
+
+for pattern in     'gz sim' 'ruby.*gz' 'parameter_bridge' 'robot_state_publisher'     'sim.launch.py' 'spawner'; do
+    stop_matching "$pattern"
+done
 sleep 6
 
-source /opt/ros/jazzy/setup.bash
+source "$ROS_SETUP"
 source "$WS/install/setup.bash"
 export DISPLAY=:0
 export ROS_DOMAIN_ID=0
@@ -61,7 +80,8 @@ sleep 35
 # plutôt que de lancer un train qui se figerait sur une simu morte.
 if ! timeout 10 ros2 topic echo /clock --once >/dev/null 2>&1; then
     echo "[$(ts)] Gazebo pas prêt (/clock muet) — abandon, retry au prochain cycle" >>"$LOG"
-    pkill -9 -f 'sim.launch.py' 2>/dev/null; pkill -9 -f 'gz sim' 2>/dev/null
+    stop_matching 'sim.launch.py'
+    stop_matching 'gz sim'
     exit 0
 fi
 
