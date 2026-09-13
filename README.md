@@ -60,8 +60,12 @@ GZ_HEADLESS=1 ros2 launch ur5e_rl_gazebo sim.launch.py
 
 ### 2. Train (terminal 2)
 ```bash
-ros2 run ur5e_rl_gazebo train
+# Run from the repository root, or set UR5E_PROJECT_ROOT explicitly.
+UR5E_PROJECT_ROOT="$PWD" ros2 run ur5e_rl_gazebo train
 ```
+Training artifacts are written to `data/`, `checkpoints/` and `tb_logs/`
+under `UR5E_PROJECT_ROOT`. You can override them independently with
+`UR5E_DEMO_PATH`, `UR5E_CHECKPOINT_DIR` and `UR5E_TB_LOG_DIR`.
 
 Resume from a checkpoint:
 ```bash
@@ -84,9 +88,10 @@ Plots success rate and reward in real time from the tfevents logs.
 `scripts/guard_train.sh` restarts the training stack automatically if it crashes.
 
 ```bash
-cp scripts/guard_train.sh ~/ros2_ws/
-chmod +x ~/ros2_ws/guard_train.sh
-crontab -e   # add: * * * * * /home/<user>/ros2_ws/guard_train.sh
+cp scripts/guard_train.sh /path/to/ros2_ws/
+chmod +x /path/to/ros2_ws/guard_train.sh
+UR5E_WS=/path/to/ros2_ws /path/to/ros2_ws/guard_train.sh
+# Add the same fully qualified command to cron if automatic restart is desired.
 ```
 
 Disable with:
