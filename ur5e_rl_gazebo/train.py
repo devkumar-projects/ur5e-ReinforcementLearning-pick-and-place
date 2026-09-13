@@ -11,6 +11,7 @@ Run:
     ros2 run ur5e_rl_gazebo train
 """
 import os, time, pickle
+from pathlib import Path
 import faulthandler
 faulthandler.enable()   # trace les segfaults C (DDS/gz) dans stderr
 import numpy as np
@@ -44,11 +45,21 @@ NET_ARCH        = [256, 256]
 
 N_DEMOS         = 60
 DEMO_NOISE      = 0.03
-DEMO_PATH       = './demos_ur5e.pkl'
+
+# Keep artifacts out of the current working directory by default. Override the
+# root explicitly when running from an installed ROS package or a lab workspace.
+PROJECT_ROOT = Path(os.environ.get('UR5E_PROJECT_ROOT', Path.cwd())).expanduser().resolve()
+DEMO_PATH       = os.environ.get(
+    'UR5E_DEMO_PATH', str(PROJECT_ROOT / 'data' / 'demos_ur5e.pkl')
+)
 
 SAVE_FREQ       = 5_000
-CHECKPOINT_DIR  = './checkpoints'
-TB_LOG_DIR      = './tb_logs'
+CHECKPOINT_DIR  = os.environ.get(
+    'UR5E_CHECKPOINT_DIR', str(PROJECT_ROOT / 'checkpoints')
+)
+TB_LOG_DIR      = os.environ.get(
+    'UR5E_TB_LOG_DIR', str(PROJECT_ROOT / 'tb_logs')
+)
 LOG_FREQ        = 400
 
 
