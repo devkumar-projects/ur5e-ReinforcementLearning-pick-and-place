@@ -120,6 +120,12 @@ TensorBoard and can be visualized live with `watch_training.py`, or after the fa
 tensorboard --logdir ur5e_rl_gazebo/tb_logs/
 ```
 
+## Related projects
+
+- [UR7e Reinforcement Learning Suite](https://github.com/devkumar-projects/UR7e-Reinforcement-Learning-Suite) — simulated robot trajectory tracking, RL and state estimation.
+- [TurtleBot3 ROS 2 Navigation](https://github.com/devkumar-projects/TurtleBot3-ROS2-Navigation-Challenges) — LiDAR and camera-based mobile robot navigation in simulation.
+- [Classical Computer Vision Toolkit](https://github.com/devkumar-projects/Classical-Computer-Vision-Toolkit) — optical-flow tracking, pose estimation and point-cloud registration.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
