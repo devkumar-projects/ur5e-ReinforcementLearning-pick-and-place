@@ -120,6 +120,10 @@ TensorBoard and can be visualized live with `watch_training.py`, or after the fa
 tensorboard --logdir ur5e_rl_gazebo/tb_logs/
 ```
 
+## Interactive Kaggle tutorial
+
+[Sparse Rewards and HER for UR5e Robots](https://www.kaggle.com/code/devkumarkaggle/sparse-rewards-and-her-for-ur5e-robots) — a CPU-only example of the environment's sparse reward and illustrative hindsight-goal relabelling. This demonstration uses synthetic positions and does not train or evaluate a robot.
+
 ## Related projects
 
 - [UR7e Reinforcement Learning Suite](https://github.com/devkumar-projects/UR7e-Reinforcement-Learning-Suite) — simulated robot trajectory tracking, RL and state estimation.
