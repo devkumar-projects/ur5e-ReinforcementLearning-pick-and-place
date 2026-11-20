@@ -133,3 +133,9 @@ tensorboard --logdir ur5e_rl_gazebo/tb_logs/
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+## Full research report
+
+[Reinforcement Learning for UR7e Trajectory Following and UR5e Manipulation (PDF)](https://dev-kumar.com/reports/ur7e-ur5e-reinforcement-learning.pdf).
+
+The complete manuscript is hosted on the portfolio. Author order and distribution terms are stated in the PDF. The code licence applies to the software; it does not relicense the manuscript.
